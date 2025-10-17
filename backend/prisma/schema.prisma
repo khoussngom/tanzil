@@ -1,0 +1,83 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Utilisateur {
+  id            Int      @id @default(autoincrement())
+  nom           String
+  email         String   @unique
+  mot_de_passe  String
+  role          String   @default("adherent")
+  date_creation DateTime @default(now()) @db.Timestamp(0)
+
+  // Relations
+  articles      Article[]
+  investissements Investissement[]
+
+  @@map("utilisateurs")
+}
+
+model Projet {
+  id            Int      @id @default(autoincrement())
+  titre         String
+  description   String?  @db.Text
+  statut        String   @default("planifie")
+  date_debut    DateTime? @db.Date
+  date_fin      DateTime? @db.Date
+  budget        Float?
+  categorie     String?
+  date_creation DateTime @default(now()) @db.Timestamp(0)
+
+  // Relations
+  investissements Investissement[]
+
+  @@map("projets")
+}
+
+model Article {
+  id                Int      @id @default(autoincrement())
+  titre             String
+  contenu           String   @db.Text
+  auteur_id         Int
+  image_couverture  String?
+  date_publication  DateTime @default(now()) @db.Timestamp(0)
+
+  // Relations
+  auteur            Utilisateur @relation(fields: [auteur_id], references: [id], onDelete: Cascade)
+
+  @@map("articles")
+}
+
+model Investissement {
+  id                  Int      @id @default(autoincrement())
+  utilisateur_id      Int
+  projet_id           Int
+  montant             Float
+  date_investissement DateTime @default(now()) @db.Timestamp(0)
+
+  // Relations
+  utilisateur         Utilisateur @relation(fields: [utilisateur_id], references: [id], onDelete: Cascade)
+  projet              Projet     @relation(fields: [projet_id], references: [id], onDelete: Cascade)
+
+  @@map("investissements")
+}
+
+model Partenaire {
+  id              Int      @id @default(autoincrement())
+  nom             String
+  description     String?  @db.Text
+  logo_url        String?
+  site_web        String?
+  date_partnership DateTime @default(now()) @db.Timestamp(0)
+  actif           Boolean  @default(true)
+
+  @@map("partenaires")
+}

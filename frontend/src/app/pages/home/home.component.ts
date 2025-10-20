@@ -10,15 +10,25 @@ import { Router } from '@angular/router';
 
 gsap.registerPlugin(ScrollTrigger);
 
-gsap.registerPlugin(ScrollTrigger);
-
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, TranslateModule, CardComponent, ButtonCTAComponent],
+  imports: [CommonModule, TranslateModule, ButtonCTAComponent],
   template: `
     <section class="hero-section relative h-screen flex items-center justify-center overflow-hidden">
-      <div class="absolute inset-0"></div>
+      <!-- Vidéo fixée en arrière-plan -->
+      <video
+        class="object-cover w-full h-full"
+        muted
+        autoplay
+        loop
+        playsinline
+        preload="auto"
+        style="position:fixed; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:-1; pointer-events:none;"
+      >
+        <source src="assets/media/video.mp4" type="video/mp4">
+      </video>
+
       <div class="relative z-10 text-center text-white px-4">
         <h1 class="text-5xl md:text-7xl font-montserrat font-bold mb-6 fade-in">
           {{ 'HOME.HERO_TITRE' | translate }}
@@ -62,26 +72,6 @@ gsap.registerPlugin(ScrollTrigger);
       </div>
     </section>
 
-    <section class="projets-section py-20 backdrop-blur-md">
-      <div class="container mx-auto px-4">
-        <div class="text-center mb-16">
-          <h2 class="text-4xl font-montserrat font-bold text-bleu-fonce mb-6 slide-up">
-            {{ 'HOME.PROJETS_TITRE' | translate }}
-          </h2>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          <app-card
-            *ngFor="let projet of projetsRecents"
-            [titre]="projet.titre"
-            [description]="projet.description"
-            [imageUrl]="projet.imageUrl"
-            [boutonTexte]="'Voir le projet'"
-          ></app-card>
-        </div>
-      </div>
-    </section>
-
     <section class="cta-section py-20 bg-bleu-fonce text-white text-center">
       <div class="container mx-auto px-4">
         <h2 class="text-4xl font-montserrat font-bold mb-6 slide-up">
@@ -114,7 +104,7 @@ gsap.registerPlugin(ScrollTrigger);
           >
             <img [src]="partenaire.logo" [alt]="partenaire.nom" class="h-16 w-auto">
           </div>
-                </div>
+        </div>
       </div>
     </section>
 
@@ -149,54 +139,89 @@ export class HomeComponent implements OnInit, AfterViewInit {
   }
 
   initialiserAnimations() {
-    // Animations ScrollTrigger
-    gsap.utils.toArray('.fade-in').forEach((element: any) => {
-      gsap.from(element, {
-        opacity: 0,
-        y: 50,
-        duration: 6,
-        scrollTrigger: {
-          trigger: element,
-          start: 'top 80%',
-          end: 'bottom 20%',
-          toggleActions: 'play none none reverse'
-        }
-      });
+    // Utiliser des batches et des timelines pour des transitions plus fluides et performantes
+    gsap.defaults({ ease: 'power3.out' });
+
+    // Batch pour les fade-in: apparaître par groupes avec léger stagger
+    ScrollTrigger.batch('.fade-in', {
+      onEnter: (batch) => {
+        gsap.fromTo(batch, { opacity: 0, y: 30 }, {
+          opacity: 1,
+          y: 0,
+          duration: 0.9,
+          stagger: 0.08
+        });
+      },
+      start: 'top 85%'
     });
 
-    gsap.utils.toArray('.slide-up').forEach((element: any, index) => {
-      gsap.from(element, {
-        opacity: 0,
-        y: 100,
-        duration: 3,
-        delay: index * 0.1,
-        scrollTrigger: {
-          trigger: element,
-          start: 'top 80%',
-          end: 'bottom 20%',
-          toggleActions: 'play none none reverse'
-        }
-      });
+    // Batch pour les éléments slide-up (cards / titres) avec un petit décalage entre eux
+    ScrollTrigger.batch('.slide-up', {
+      onEnter: (batch) => {
+        gsap.fromTo(batch, { opacity: 0, y: 60 }, {
+          opacity: 1,
+          y: 0,
+          duration: 1,
+          stagger: 0.12
+        });
+      },
+      start: 'top 85%'
     });
 
+    // Parallax léger et plus fluide
     gsap.utils.toArray('.parallax').forEach((element: any) => {
-      gsap.from(element, {
-        y: -50,
-        duration: 2,
-        ease: 'power2.out',
+      gsap.to(element, {
+        y: -30,
+        ease: 'none',
         scrollTrigger: {
           trigger: element,
-          start: 'top 80%',
-          end: 'bottom 20%',
-          scrub: true
+          start: 'top 90%',
+          end: 'bottom 10%',
+          scrub: 0.6
         }
       });
     });
+
+    // Découper le scroll en pourcentages et positionner la vidéo à chaque % (snap par pourcent)
+    const video = document.querySelector('.hero-section video') as HTMLVideoElement;
+    if (video) {
+      // attendre les métadonnées pour connaître la durée
+      video.addEventListener('loadedmetadata', () => {
+        let lastPercent = -1;
+
+        // Créer un ScrollTrigger qui suit la progression et met à jour la vidéo uniquement quand le pourcent change
+        ScrollTrigger.create({
+          trigger: '.hero-section',
+          start: 'top top',
+          end: 'bottom top',
+          // scrub true pour que ScrollTrigger calcule progress en continu, mais on n'utilise que l'entier %
+          scrub: true,
+          onUpdate: (self) => {
+            const percent = Math.round(self.progress * 100);
+            if (percent !== lastPercent) {
+              lastPercent = percent;
+              const targetTime = Math.min(video.duration, (percent / 100) * video.duration);
+
+              // Mettre à jour la position de la vidéo. On utilise requestAnimationFrame pour être sûr d'être dans un frame.
+              requestAnimationFrame(() => {
+                try {
+                  // Définir currentTime directement pour "snap" à chaque pourcent
+                  video.currentTime = targetTime;
+                } catch (e) {
+                  // Certains navigateurs peuvent lancer si manipulé trop souvent ; on ignore les erreurs silencieusement
+                  // (ou on pourrait fallback en faisant un petit gsap.to si nécessaire)
+                }
+              });
+            }
+          }
+        });
+      });
+    }
   }
 
   defilerVersSections() {
     gsap.to(window, {
-      duration: 1,
+      duration: 0.8,
       scrollTo: { y: '.vision-section', offsetY: 80 },
       ease: 'power2.out'
     });
@@ -204,7 +229,7 @@ export class HomeComponent implements OnInit, AfterViewInit {
 
   retourHaut() {
     gsap.to(window, {
-      duration: 1,
+      duration: 0.8,
       scrollTo: { y: 0 },
       ease: 'power2.out'
     });
